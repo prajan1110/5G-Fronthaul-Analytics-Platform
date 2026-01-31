@@ -1,0 +1,36 @@
+======================================================================
+MODEL EVALUATION REPORT
+======================================================================
+
+Configuration:
+  Model: Random Forest (Refactored)
+  Prediction horizon: 50 slots
+  Future window (smoothing): 5 slots
+  Features: 12
+
+Performance Metrics:
+  Accuracy:  0.9106
+  Precision: 0.9059
+  Recall:    0.9702
+  F1-Score:  0.9370
+  ROC-AUC:   0.9829
+
+Confusion Matrix:
+  True Negatives:  21,977
+  False Positives: 6,148
+  False Negatives: 1,819
+  True Positives:  59,218
+
+Feature List:
+   1. mean_throughput
+   2. max_throughput
+   3. std_throughput
+   4. throughput_trend
+   5. throughput_acceleration
+   6. loss_count
+   7. time_since_last_loss
+   8. max_burst_length
+   9. burstiness
+  10. link_Link_1
+  11. link_Link_2
+  12. link_Link_3

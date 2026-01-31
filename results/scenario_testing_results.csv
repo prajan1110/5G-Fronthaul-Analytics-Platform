@@ -1,0 +1,7 @@
+scenario,accuracy,samples
+Normal Operation,1.0,10
+Heavy Traffic,1.0,10
+Packet Loss,,0
+Increasing Trend,1.0,10
+Bursty Traffic,0.8,10
+Overall,0.9287588883156501,89162

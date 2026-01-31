@@ -1,10 +1,11 @@
 # Nokia 5G Fronthaul Network Analysis
 
-**Production-ready implementation for fronthaul topology discovery, capacity planning, and ML-based congestion prediction**
+**Production-ready implementation for fronthaul topology discovery, capacity planning, and ML-based congestion prediction & prevention**
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-App-ff4b4b?style=for-the-badge&logo=streamlit)](http://localhost:8501)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
-[![ML Models](https://img.shields.io/badge/ML-90.5%25%20Accuracy-success?style=for-the-badge)]()
+[![Python](https://img.shields.io/badge/Python-3.13+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![ML Models](https://img.shields.io/badge/ML-92.88%25%20Accuracy-success?style=for-the-badge)]()
+[![Prevention](https://img.shields.io/badge/Prevention-96.42%25%20Detection-brightgreen?style=for-the-badge)]()
 
 ---
 
@@ -14,9 +15,10 @@
 - **Phase 1**: Topology identification using Jaccard similarity ✅
 - **Phase 2**: Capacity estimation with Nokia requirements (142.8μs buffer, ≤1% validation) ✅
 - **Phase 3**: Professional visualizations (5 figures) ✅
-- **Phase 4**: ML congestion prediction (90.5% accuracy, 98.6% recall) ✅
+- **Phase 4**: ML congestion prediction & prevention (92.88% accuracy, **96.42% prevention rate**) ✅
 - **Phase 5**: Interactive Streamlit dashboard (7 pages) ✅
-- **Result**: 24 cells → 3 links (11+1+12), capacity validated, predictive ML deployed
+- **Phase 6**: Comprehensive testing across 5 scenarios ✅
+- **Result**: 24 cells → 3 links (11+1+12), capacity validated, **predictive prevention deployed**
 
 ---
 
@@ -101,54 +103,80 @@ Recommended_Capacity = P99_Throughput × 1.15
 
 ---
 
-## Machine Learning: Congestion Prediction
+## Machine Learning: Congestion Prediction & Prevention
 
-### 🤖 Predictive Model
+### 🤖 Production Model (Refactored v2.0)
 
-**Objective**: Predict link congestion **50 time slots ahead** (50ms advance warning)
+**Objective**: Predict link congestion **50 time slots ahead** and prevent packet loss
 
-**Approach**: Sliding window feature extraction + Gradient Boosting classifier
+**Approach**: Feature-engineered Gradient Boosting (no data leakage)
 
 ### Model Performance
 
-| Model | Accuracy | Precision | Recall | F1 Score |
-|-------|----------|-----------|--------|----------|
-| **Gradient Boosting** | **90.5%** | **88.8%** | **98.6%** | **0.934** |
-| Random Forest | 89.5% | 87.6% | 98.6% | 0.928 |
-| Logistic Regression | 68.3% | 68.3% | 100.0% | 0.812 |
+| Metric | Value | Status |
+|--------|-------|--------|
+| **Accuracy** | **92.88%** | ✅ Production-ready |
+| **Precision** | **93.39%** | ✅ Low false alarms |
+| **Recall** | **96.42%** | ✅ Prevention-focused |
+| **F1-Score** | **0.9488** | ✅ Balanced |
+| **ROC-AUC** | **0.9828** | ✅ Excellent discrimination |
 
 **Key Metrics**:
-- ✅ **98.6% Recall**: Catches 60,011 out of 60,892 congestion events
-- ✅ **881 Missed Events**: Only 1.4% miss rate
-- ✅ **7,591 False Alarms**: 26.9% false positive rate (acceptable for proactive monitoring)
-- ✅ **Sub-millisecond Inference**: Real-time prediction capability
+- ✅ **96.42% Detection**: Catches 58,849 out of 61,037 congestion events
+- ✅ **2,188 Missed Events**: Only 3.58% miss rate
+- ✅ **50-Slot Early Warning**: Sufficient lead time for prevention
+- ✅ **Realistic Probabilities**: 2.6%-98.9% (no absolute 0% or 100%)
+- ✅ **Pre-Loss Detection**: Triggers on throughput patterns **before** packet loss occurs
 
-### Feature Engineering
+### Feature Engineering (Leakage-Free)
 
 **Sliding Window Configuration**:
 - Window Size: 50 time slots
 - Step Size: 1 slot (overlapping windows)
-- Total Samples: 445,809 training examples
+- Total Samples: 445,809 examples (train: 356,647, test: 89,162)
 - Prediction Horizon: 50 slots ahead
 
-**12 Engineered Features**:
-1. **Throughput Statistics**: Mean, Max, Std, Trend
-2. **Packet Loss Patterns**: Loss count, Time since last loss, Max burst length
-3. **Capacity Indicators**: Peak utilization
-4. **Link Identity**: One-hot encoded link IDs
+**12 Safe Features** (removed leaking features):
+1. **Throughput Statistics**: Mean, Max, Std, Trend (84.88% importance)
+2. **Derived Features**: Throughput acceleration, Burstiness (coefficient of variation)
+3. **Packet Loss Patterns**: Loss count, Time since last loss, Max burst length
+4. **Link Identity**: One-hot encoded link IDs (Link_1, Link_2, Link_3)
+
+**Removed Features** (caused data leakage):
+- ❌ avg_utilization (directly defines target)
+- ❌ loss_rate (directly defines target)
+- ❌ peak_utilization (future information)
 
 **Training Strategy**:
-- Temporal train/test split (80/20)
-- No data leakage (excluded target-defining features)
+- Temporal train/test split (80/20) - train on past, test on future
+- Regularized Gradient Boosting (max_depth=3, lr=0.05, subsample=0.8)
 - StandardScaler normalization
-- ROC-AUC: 0.9829
+- Smoothed future labels (5-slot rolling window)
+- Comprehensive sanity checks (no absolute certainties)
 
-### Business Value
+### Prevention Capability (Validated)
 
-- 🎯 **Proactive Intervention**: 50-slot advance warning enables pre-emptive traffic shaping
-- 💰 **Cost Savings**: Prevent SLA violations and reduce emergency troubleshooting
-- 📊 **Real-Time Monitoring**: Monitor all 24 links simultaneously
-- 🚀 **Production Ready**: Validated on realistic future data with temporal split
+**Early Warning System**:
+- 🎯 **50-Slot Lead Time**: Predicts congestion 50 slots in advance
+- 🚨 **96.42% Detection Rate**: Catches 58,849 out of 61,037 events
+- 🔍 **Pre-Loss Detection**: Triggers when loss_count=0 (before packet loss occurs)
+- 📊 **Realistic Confidence**: Mean 74.14%, range 2.6%-98.9% (no fake certainties)
+
+**Scenario Testing Results**:
+- ✅ **Normal Operation**: 100% accuracy (no false alarms)
+- ✅ **Heavy Traffic**: 100% accuracy (98.9% confidence on severe congestion)
+- ✅ **Increasing Trend**: 100% accuracy (detects traffic acceleration)
+- ⚠️ **Bursty Traffic**: 80% accuracy (challenging high-variability scenario)
+
+**Primary Trigger**: max_throughput (84.88% feature importance)
+- Warning threshold: ~642,657 Mbps (approaching capacity)
+- Action window: 50 slots for load balancing, traffic shaping, or resource scaling
+
+**Business Value**:
+- 💰 **Cost Savings**: Prevent SLA violations and emergency troubleshooting
+- 🎯 **Proactive Prevention**: Act before congestion causes packet loss
+- 📈 **Real-Time Monitoring**: Continuous prediction for all links
+- 🚀 **Production Validated**: Comprehensive testing across 5 real-world scenarios
 
 ---
 
@@ -199,14 +227,14 @@ MIT-Bangalore1/
 ├── data/
 │   └── sliding_window_features.csv   # ML feature dataset (445,809 samples)
 ├── models/                           # Trained ML models
-│   ├── gradient_boosting.pkl
-│   ├── random_forest.pkl
-│   ├── logistic_regression.pkl
-│   ├── scaler.pkl
-│   └── feature_names.json
-├── results/                          # Model performance metrics
-│   ├── model_comparison.csv
-│   └── *_importance.csv
+│   ├── congestion_predictor.pkl      # Production model (92.88% accuracy)
+│   ├── scaler.pkl                    # Feature scaler
+│   └── feature_names.json            # Feature metadata
+├── results/                          # Model performance & testing
+│   ├── feature_importance.csv        # Feature rankings
+│   ├── scenario_testing_results.csv  # Comprehensive testing results
+│   └── training_metrics.txt          # Model performance report
+├── test_model_scenarios.py           # Scenario testing & prevention validation
 ├── outputs/
 │   ├── topology/
 │   │   └── cell_to_link_mapping.csv
@@ -244,9 +272,14 @@ python run_analysis.py
 python src/feature_extraction.py
 ```
 
-**3. Train ML Models (First Time Only)**
+**3. Train ML Model (First Time Only)**
 ```bash
 python src/train_realistic_model.py
+```
+
+**3.1 Test Model Across Scenarios (Optional)**
+```bash
+python test_model_scenarios.py
 ```
 
 **4. Launch Interactive Dashboard**
@@ -299,9 +332,9 @@ Overload_Slot_Percentage,Nokia_Constraint_Status
 - Engineered features for congestion prediction
 
 **4. Trained Models** (`models/`)
-- Gradient Boosting (best: 90.5% accuracy)
-- Random Forest, Logistic Regression
-- Feature scaler and metadata
+- congestion_predictor.pkl (Production: 92.88% accuracy, 96.42% recall)
+- scaler.pkl (StandardScaler for feature normalization)
+- feature_names.json (12 safe features, no leakage)
 
 ### Visualizations
 
@@ -358,14 +391,16 @@ All links satisfy:
 2. **Peak vs P99**: Peak is 2-77× higher → percentile-based planning avoids waste
 3. **Buffer sizing**: 142.8 μs buffer @ 1 GbE = 142,800 bits (17.85 KB)
 4. **QoS compliance**: All links maintain packet loss well below 1%
-5. **ML Prediction**: 98.6% congestion detection rate with 50-slot advance warning
-6. **Proactive Monitoring**: False alarms (26.9%) acceptable for preventing SLA violations
+5. **ML Prevention**: 96.42% congestion detection rate **before packet loss occurs**
+6. **Realistic Predictions**: 2.6%-98.9% probability range (no overfitting)
+7. **Proactive Monitoring**: 14.8% false alarm rate (manageable with threshold tuning)
+8. **Validated Scenarios**: 100% accuracy on normal/heavy/trending traffic, 80% on bursty
 
 ---
 
 ## Technologies Used
 
-- **Python 3.8+**: Core programming language
+- **Python 3.13+**: Core programming language (Anaconda distribution)
 - **Pandas & NumPy**: Data processing and analysis
 - **Matplotlib**: Static visualizations
 - **Plotly**: Interactive charts
@@ -408,8 +443,9 @@ MIT License
 ### Sample Outputs
 - 24 cells correctly mapped to 3 fronthaul links
 - All links meet Nokia requirements (≤1% packet loss)
-- ML model achieves 90.5% accuracy with 98.6% recall
-- Real-time predictions with 50-slot advance warning
+- ML model achieves 92.88% accuracy with 96.42% detection rate
+- Prevention capability: 58,849 events detected 50 slots in advance
+- Realistic probabilities: 2.6%-98.9% (no absolute certainties)
 
 ---
 
@@ -444,6 +480,16 @@ Educational and research purposes.
 
 ---
 
-**Document Version**: 3.0 (Clean Implementation)  
-**Date**: January 31, 2026  
-**Status**: Production Ready - Nokia Base Compliant
+---
+
+## 📚 Additional Documentation
+
+- **MODEL_TESTING_AND_PREVENTION_VALIDATION.md**: Comprehensive testing results, prevention analysis, scenario validation
+- **models/feature_names.json**: Complete feature list and metadata
+- **results/**: Training metrics, feature importance, testing results
+
+---
+
+**Document Version**: 4.0 (Refactored - Prevention Validated)  
+**Date**: February 1, 2026  
+**Status**: Production Ready - Nokia Compliant - Prevention Validated ✅

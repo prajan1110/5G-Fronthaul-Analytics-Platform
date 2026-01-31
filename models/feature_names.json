@@ -1,0 +1,16 @@
+{
+  "features": [
+    "mean_throughput",
+    "max_throughput",
+    "std_throughput",
+    "throughput_trend",
+    "throughput_acceleration",
+    "loss_count",
+    "time_since_last_loss",
+    "max_burst_length",
+    "burstiness",
+    "link_Link_1",
+    "link_Link_2",
+    "link_Link_3"
+  ]
+}

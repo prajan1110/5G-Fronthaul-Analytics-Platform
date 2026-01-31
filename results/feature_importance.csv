@@ -1,0 +1,13 @@
+feature,importance
+max_throughput,0.30043409981000535
+std_throughput,0.23837726875460136
+mean_throughput,0.21254100214440308
+burstiness,0.10255690721519786
+link_Link_2,0.06218070792089024
+throughput_acceleration,0.048504447215230076
+throughput_trend,0.015132852520567721
+link_Link_1,0.01445588339497572
+link_Link_3,0.004525347831741456
+loss_count,0.0012914831923870396
+max_burst_length,0.0
+time_since_last_loss,0.0

@@ -1,0 +1,2 @@
+model,accuracy,precision,recall,f1_score,roc_auc,true_negatives,false_positives,false_negatives,true_positives
+Random Forest (Refactored),0.9106457908077432,0.9059449866903283,0.9701984042466045,0.9369714326400481,0.9829122607962748,21977,6148,1819,59218

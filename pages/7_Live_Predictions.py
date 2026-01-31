@@ -1,6 +1,5 @@
 """
 Streamlit Page: Live Congestion Prediction Demo
-
 Interactive demo showing how the model predicts future congestion.
 """
 
@@ -16,70 +15,16 @@ import json
 # Page config
 st.set_page_config(page_title="Live Predictions", page_icon="🔮", layout="wide")
 
-# Dark mode toggle
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = True
-
-with st.sidebar:
-    st.session_state.dark_mode = st.checkbox("🌙 Dark Mode", value=st.session_state.dark_mode)
-
-# Apply theme
-if st.session_state.dark_mode:
-    st.markdown("""
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
-        color: #ffffff;
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
-        padding: 1.5rem;
-        border-radius: 1rem;
-        border: 1px solid #404040;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        margin: 1rem 0;
-    }
-    .prediction-normal {
-        background: linear-gradient(135deg, #1e3d1e 0%, #2d4d2d 100%);
-        border-left: 5px solid #10b981;
-    }
-    .prediction-congested {
-        background: linear-gradient(135deg, #3d1e1e 0%, #4d2d2d 100%);
-        border-left: 5px solid #ef4444;
-    }
-    h1, h2, h3 { color: #4da6ff !important; }
-    </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        color: #1e1e1e;
-    }
-    .metric-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin: 1rem 0;
-    }
-    .prediction-normal {
-        background: #efe;
-        border-left: 5px solid #10b981;
-    }
-    .prediction-congested {
-        background: #fee;
-        border-left: 5px solid #ef4444;
-    }
-    h1, h2, h3 { color: #1e40af !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
 # Title
-st.markdown("<h1 style='font-size: 2.8rem; text-align: center;'>🔮 Live Congestion Prediction Demo</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 1.2rem; opacity: 0.8;'>Interactive Prediction on Real Historical Data</p>", unsafe_allow_html=True)
+st.title("🔮 Live Congestion Prediction")
+st.markdown("---")
+
+st.info("""
+**How it works:** The model analyzes traffic patterns in 50-slot windows and predicts if 
+congestion will occur **50 slots ahead**. This early warning enables proactive network management.
+
+**Note:** The model predicts the FUTURE state (50 slots ahead), not the current window state.
+""")
 
 # Load model and data
 @st.cache_resource
@@ -90,8 +35,8 @@ def load_model_artifacts():
     if not models_dir.exists():
         return None, None, None
     
-    # Load best model (Gradient Boosting)
-    model_path = models_dir / "gradient_boosting.pkl"
+    # Use refactored model (no data leakage)
+    model_path = models_dir / "congestion_predictor.pkl"
     scaler_path = models_dir / "scaler.pkl"
     features_path = models_dir / "feature_names.json"
     
@@ -112,8 +57,27 @@ def load_sample_data():
     features_file = Path("data/sliding_window_features.csv")
     if features_file.exists():
         df = pd.read_csv(features_file)
-        # Create actual target for comparison
-        df['actual_congestion'] = ((df['avg_utilization'] > 0.8) | (df['loss_rate'] > 0.1)).astype(int)
+        
+        # Create future congestion labels (same logic as training)
+        df['future_congestion'] = 0
+        
+        for link in df['link_id'].unique():
+            link_mask = df['link_id'] == link
+            link_df = df[link_mask].sort_values('window_start_slot').copy()
+            
+            # Shift utilization and loss 50 slots forward
+            future_util = link_df['avg_utilization'].shift(-50)
+            future_loss = link_df['loss_rate'].shift(-50)
+            
+            # Label congestion if future util > 0.8 OR future loss > 0.1
+            future_congestion = ((future_util > 0.8) | (future_loss > 0.1)).fillna(0).astype(int)
+            
+            df.loc[link_mask, 'future_congestion'] = future_congestion
+        
+        # Remove windows where we can't predict
+        df = df[df['future_congestion'].notna()].copy()
+        df['future_congestion'] = df['future_congestion'].astype(int)
+        
         return df
     return None
 
@@ -126,43 +90,34 @@ if model is None or features_df is None:
 
 st.markdown("---")
 
-# Interactive Selection
-st.markdown("## 🎮 Select a Window to Analyze")
+# Calculate derived features if they don't exist
+if 'throughput_acceleration' not in features_df.columns:
+    # Sort by link and time
+    features_df = features_df.sort_values(['link_id', 'window_start_slot'])
+    
+    # Calculate throughput_acceleration (rate of change of throughput_trend)
+    features_df['throughput_acceleration'] = features_df.groupby('link_id')['throughput_trend'].diff().fillna(0)
+    
+    # Calculate burstiness (max_throughput / mean_throughput ratio)
+    features_df['burstiness'] = features_df['max_throughput'] / (features_df['mean_throughput'] + 1e-6)
+    features_df['burstiness'] = features_df['burstiness'].fillna(1.0)
 
-col1, col2, col3 = st.columns(3)
+# Interactive Selection
+st.subheader("🎮 Select a Window to Analyze")
+
+col1, col2 = st.columns([2, 1])
 
 with col1:
     link_options = features_df['link_id'].unique().tolist()
     selected_link = st.selectbox("🔗 Select Link", link_options)
 
 with col2:
-    # Filter by link
-    link_data = features_df[features_df['link_id'] == selected_link]
-    
-    # Sample options: normal, congested, high traffic
-    scenario = st.selectbox("📊 Select Scenario", [
-        "Random Sample",
-        "Normal Operation (low traffic)",
-        "Heavy Traffic",
-        "Actual Congestion Event"
-    ])
-
-with col3:
-    if scenario == "Random Sample":
-        sample = link_data.sample(1, random_state=np.random.randint(10000))
-    elif scenario == "Normal Operation (low traffic)":
-        sample = link_data[link_data['mean_throughput'] < link_data['mean_throughput'].quantile(0.25)].sample(1, random_state=42)
-    elif scenario == "Heavy Traffic":
-        sample = link_data[link_data['mean_throughput'] > link_data['mean_throughput'].quantile(0.75)].sample(1, random_state=42)
-    else:  # Actual Congestion
-        congested = link_data[link_data['actual_congestion'] == 1]
-        if len(congested) > 0:
-            sample = congested.sample(1, random_state=42)
-        else:
-            sample = link_data.sample(1, random_state=42)
-    
-    if st.button("🎲 Get New Sample", type="primary"):
+    if st.button("🎲 Get Random Window", type="primary"):
         st.rerun()
+
+# Filter by link and get a truly random sample
+link_data = features_df[features_df['link_id'] == selected_link]
+sample = link_data.sample(1, random_state=np.random.randint(100000))
 
 st.markdown("---")
 
@@ -170,7 +125,7 @@ st.markdown("---")
 if len(sample) > 0:
     row = sample.iloc[0]
     
-    st.markdown("## 📋 Selected Window Details")
+    st.subheader("📋 Selected Window Details")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -184,38 +139,48 @@ if len(sample) > 0:
     
     with col3:
         st.metric("Std Throughput", f"{row['std_throughput']:.2f} Mbps")
-        st.metric("Throughput Trend", f"{row['throughput_trend']:.2f}")
+        st.metric("Throughput Trend", f"{row['throughput_trend']:.4f}")
     
     with col4:
-        st.metric("Loss Rate", f"{row['loss_rate']:.2%}")
-        st.metric("Loss Count", int(row['loss_count']))
+        st.metric("Loss Count", f"{int(row.get('loss_count', 0))}")
+        loss_rate = row.get('loss_rate', 0.0) if 'loss_rate' in row else 0.0
+        st.metric("Loss Rate", f"{loss_rate:.2%}")
+    
+    if int(row.get('loss_count', 0)) == 0:
+        st.info("💡 **Note:** This window has loss_count=0 (no packet loss), but the model can still predict **future congestion** based on throughput patterns! The refactored model doesn't rely on packet loss - it triggers on max_throughput (84.88% importance).")
     
     st.markdown("---")
     
     # Make Prediction
-    st.markdown("## 🔮 Model Prediction")
+    st.subheader("🔮 Model Prediction (50 Slots Ahead)")
     
-    # Prepare features (exclude target-defining features for realistic model)
+    target_slot = int(row['window_start_slot']) + 50
+    st.info(f"📊 **Prediction Target:** Based on current window (slots {int(row['window_start_slot'])} to {int(row['window_end_slot'])}), what will the network state be at slot **{target_slot}**?")
+    
+    # Prepare features (SAFE FEATURES - NO LEAKAGE)
+    # Must match EXACTLY the 12 features used in training:
+    # ['mean_throughput', 'max_throughput', 'std_throughput', 'throughput_trend', 
+    #  'throughput_acceleration', 'loss_count', 'time_since_last_loss', 'max_burst_length', 
+    #  'burstiness', 'link_Link_1', 'link_Link_2', 'link_Link_3']
+    
     feature_cols = [
         'mean_throughput', 'max_throughput', 'std_throughput', 
-        'throughput_trend', 'time_since_last_loss', 'max_burst_length'
+        'throughput_trend', 'throughput_acceleration', 'loss_count',
+        'time_since_last_loss', 'max_burst_length', 'burstiness'
     ]
     
+    # Extract feature values
     X = row[feature_cols].values.reshape(1, -1)
     
-    # Add link encoding if in feature names
+    # Add link encoding (one-hot for Link_1, Link_2, Link_3)
     link_features = []
-    for link in ['link_Link_1', 'link_Link_2', 'link_Link_3']:
-        if link in feature_names:
-            link_features.append(1.0 if row['link_id'] == link.replace('link_', '') else 0.0)
+    for link in ['Link_1', 'Link_2', 'Link_3']:
+        link_features.append(1.0 if row['link_id'] == link else 0.0)
     
-    if link_features:
-        X = np.hstack([X, np.array(link_features).reshape(1, -1)])
+    X = np.hstack([X, np.array(link_features).reshape(1, -1)])
     
-    # Scale features
+    # Scale and predict
     X_scaled = scaler.transform(X)
-    
-    # Predict
     prediction = model.predict(X_scaled)[0]
     prediction_proba = model.predict_proba(X_scaled)[0]
     
@@ -227,39 +192,19 @@ if len(sample) > 0:
     
     with col1:
         if prediction == 1:
-            st.markdown(f"""
-            <div class="metric-card prediction-congested">
-                <h2 style='color: #ef4444 !important; text-align: center;'>🔴 CONGESTION PREDICTED</h2>
-                <p style='text-align: center; font-size: 2rem; font-weight: bold; margin: 1rem 0;'>{confidence_congested:.1f}%</p>
-                <p style='text-align: center; opacity: 0.8;'>Confidence Level</p>
-                
-                <hr style='margin: 1.5rem 0; opacity: 0.3;'>
-                
-                <h3>⚠️ Predicted for 50 slots ahead:</h3>
-                <ul>
-                    <li>High probability of congestion at slot {int(row['window_start_slot']) + 50}</li>
-                    <li>Recommended action: Pre-emptive traffic shaping</li>
-                    <li>Alert operators for proactive intervention</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            st.error("### 🔴 CONGESTION PREDICTED")
+            st.metric("Confidence Level", f"{confidence_congested:.1f}%", delta=None)
+            st.markdown("**⚠️ Predicted for 50 slots ahead:**")
+            st.markdown(f"- High probability of congestion at slot **{target_slot}**")
+            st.markdown("- Recommended action: Pre-emptive traffic shaping")
+            st.markdown("- Alert operators for proactive intervention")
         else:
-            st.markdown(f"""
-            <div class="metric-card prediction-normal">
-                <h2 style='color: #10b981 !important; text-align: center;'>🟢 NORMAL OPERATION</h2>
-                <p style='text-align: center; font-size: 2rem; font-weight: bold; margin: 1rem 0;'>{confidence_normal:.1f}%</p>
-                <p style='text-align: center; opacity: 0.8;'>Confidence Level</p>
-                
-                <hr style='margin: 1.5rem 0; opacity: 0.3;'>
-                
-                <h3>✅ Predicted for 50 slots ahead:</h3>
-                <ul>
-                    <li>Link expected to operate normally</li>
-                    <li>No intervention required</li>
-                    <li>Continue monitoring</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            st.success("### 🟢 NORMAL OPERATION")
+            st.metric("Confidence Level", f"{confidence_normal:.1f}%", delta=None)
+            st.markdown("**✅ Predicted for 50 slots ahead:**")
+            st.markdown("- Link expected to operate normally")
+            st.markdown("- No intervention required")
+            st.markdown("- Continue monitoring")
     
     with col2:
         # Probability distribution
@@ -277,14 +222,13 @@ if len(sample) > 0:
             title="Prediction Probability Distribution",
             yaxis_title="Confidence (%)",
             yaxis_range=[0, 110],
-            template='plotly_dark' if st.session_state.dark_mode else 'plotly_white',
             height=350
         )
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Actual outcome (for validation)
-        actual = row['actual_congestion']
+        # Actual outcome
+        actual = row['future_congestion']
         
         if actual == prediction:
             st.success(f"✅ **Correct Prediction!** Model correctly predicted {'congestion' if actual == 1 else 'normal operation'}")
@@ -293,13 +237,12 @@ if len(sample) > 0:
     
     st.markdown("---")
     
-    # Feature Contribution Analysis
-    st.markdown("## 🔍 What Led to This Prediction?")
+    # Feature Analysis
+    st.subheader("🔍 What Led to This Prediction?")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Show feature values and their impact
         feature_values = {
             'Mean Throughput': row['mean_throughput'],
             'Max Throughput': row['max_throughput'],
@@ -308,9 +251,6 @@ if len(sample) > 0:
             'Time Since Last Loss': row['time_since_last_loss'],
             'Max Burst Length': row['max_burst_length']
         }
-        
-        # Normalize for visualization
-        max_val = max([abs(v) for v in feature_values.values()])
         
         fig = go.Figure()
         
@@ -327,42 +267,30 @@ if len(sample) > 0:
         fig.update_layout(
             title="Feature Values for This Window",
             xaxis_title="Value",
-            template='plotly_dark' if st.session_state.dark_mode else 'plotly_white',
             height=400
         )
         
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>💡 Key Factors</h3>
-            <p><strong>Most Important Features:</strong></p>
-            <ol>
-                <li><strong>Mean Throughput</strong><br>Primary load indicator</li>
-                <li><strong>Max Throughput</strong><br>Peak traffic detection</li>
-                <li><strong>Std Throughput</strong><br>Traffic variability</li>
-            </ol>
-            
-            <hr style='margin: 1rem 0; opacity: 0.3;'>
-            
-            <p><strong>Model Behavior:</strong></p>
-            <ul>
-                <li>High throughput → Higher congestion probability</li>
-                <li>High variability → Traffic instability signal</li>
-                <li>Rising trend → Early warning indicator</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("**💡 Key Factors**")
+        st.markdown("**Most Important Features:**")
+        st.markdown("1. **Mean Throughput** - Primary load indicator")
+        st.markdown("2. **Max Throughput** - Peak traffic detection")
+        st.markdown("3. **Std Throughput** - Traffic variability")
+        st.markdown("")
+        st.markdown("**Model Behavior:**")
+        st.markdown("- High throughput → Higher congestion probability")
+        st.markdown("- High variability → Traffic instability signal")
+        st.markdown("- Rising trend → Early warning indicator")
     
     st.markdown("---")
     
     # Timeline Visualization
-    st.markdown("## 📈 Traffic Pattern Timeline")
+    st.subheader("📈 Traffic Pattern Timeline")
     
-    # Get surrounding windows for context
     window_start = int(row['window_start_slot'])
-    context_window = 200  # Show ±200 slots
+    context_window = 200
     
     context_data = link_data[
         (link_data['window_start_slot'] >= window_start - context_window) &
@@ -377,7 +305,6 @@ if len(sample) > 0:
             vertical_spacing=0.15
         )
         
-        # Throughput timeline
         fig.add_trace(
             go.Scatter(
                 x=context_data['window_start_slot'],
@@ -389,7 +316,6 @@ if len(sample) > 0:
             row=1, col=1
         )
         
-        # Highlight current window
         fig.add_vline(
             x=window_start,
             line_dash="dash",
@@ -398,22 +324,19 @@ if len(sample) > 0:
             row=1, col=1
         )
         
-        # Congestion probability (if we had predictions for all)
-        # For demo, we'll use actual congestion
-        colors = ['#10b981' if c == 0 else '#ef4444' for c in context_data['actual_congestion']]
+        colors = ['#10b981' if c == 0 else '#ef4444' for c in context_data['future_congestion']]
         
         fig.add_trace(
             go.Scatter(
                 x=context_data['window_start_slot'],
-                y=context_data['actual_congestion'],
+                y=context_data['future_congestion'],
                 mode='markers',
-                name='Congestion State',
+                name='Future Congestion State',
                 marker=dict(size=8, color=colors)
             ),
             row=2, col=1
         )
         
-        # Highlight current prediction
         fig.add_trace(
             go.Scatter(
                 x=[window_start],
@@ -429,86 +352,57 @@ if len(sample) > 0:
         fig.update_yaxes(title_text="Throughput (Mbps)", row=1, col=1)
         fig.update_yaxes(title_text="State (0=Normal, 1=Congested)", row=2, col=1)
         
-        fig.update_layout(
-            height=600,
-            template='plotly_dark' if st.session_state.dark_mode else 'plotly_white',
-            showlegend=True
-        )
+        fig.update_layout(height=600, showlegend=True)
         
         st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 
 # Explanation Section
-st.markdown("## 📚 How This Works")
+st.subheader("📚 How Predictions Work")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("""
-    <div class="metric-card">
-        <h3>🔮 Prediction Process</h3>
-        
-        <h4>1. Feature Extraction (50-slot window)</h4>
-        <ul>
-            <li>Calculate throughput statistics</li>
-            <li>Analyze traffic trends</li>
-            <li>Check historical loss patterns</li>
-        </ul>
-        
-        <h4>2. Feature Scaling</h4>
-        <ul>
-            <li>Normalize all features to same scale</li>
-            <li>Prevents large values dominating prediction</li>
-        </ul>
-        
-        <h4>3. Model Inference</h4>
-        <ul>
-            <li>Gradient Boosting ensemble makes prediction</li>
-            <li>100 decision trees vote on outcome</li>
-            <li>Returns probability distribution</li>
-        </ul>
-        
-        <h4>4. Decision</h4>
-        <ul>
-            <li>If P(congestion) > 50%: Alert</li>
-            <li>Confidence level guides urgency</li>
-            <li>50-slot advance warning allows action</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("**🔮 Prediction Process (Refactored Model)**")
+    st.markdown("**1. Window Analysis**")
+    st.markdown("Extract 12 safe features from 50-slot window:")
+    st.markdown("- Throughput statistics (mean, max, std, trend)")
+    st.markdown("- Loss patterns (count, burst, time since last)")
+    st.markdown("- Derived features (acceleration, burstiness)")
+    st.markdown("- Link identification (Link_1, Link_2, Link_3)")
+    st.markdown("")
+    st.markdown("⚠️ **Removed leaking features:** avg_utilization, loss_rate, peak_utilization")
+    st.markdown("")
+    st.markdown("**2. Feature Scaling**")
+    st.markdown("Normalize all features to 0-1 range for consistent model input.")
+    st.markdown("")
+    st.markdown("**3. Gradient Boosting Model**")
+    st.markdown("Ensemble of 100 decision trees predicts future state with confidence score.")
+    st.markdown("")
+    st.markdown("**4. Early Warning**")
+    st.markdown("50-slot advance prediction allows time for proactive intervention.")
 
 with col2:
-    st.markdown("""
-    <div class="metric-card">
-        <h3>💼 Business Value</h3>
-        
-        <h4>🎯 Proactive Management</h4>
-        <p>Predict congestion <strong>before</strong> it impacts users, allowing time for intervention.</p>
-        
-        <h4>⚡ Fast Response</h4>
-        <p>Inference takes <strong>&lt;1ms</strong>, enabling real-time monitoring of all links.</p>
-        
-        <h4>📊 98.6% Recall</h4>
-        <p>Catches nearly all congestion events, minimizing undetected degradation.</p>
-        
-        <h4>💰 Cost Savings</h4>
-        <ul>
-            <li>Prevent SLA violations ($$$)</li>
-            <li>Reduce emergency interventions</li>
-            <li>Optimize capacity planning</li>
-            <li>Improve customer satisfaction</li>
-        </ul>
-        
-        <h4>🚀 Deployment Ready</h4>
-        <p>Model is trained, validated, and ready for production integration.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("**💼 Business Value**")
+    st.markdown("**🎯 Proactive Management**")
+    st.markdown("Predict congestion BEFORE it impacts users - time for intervention.")
+    st.markdown("")
+    st.markdown("**⚡ Real-Time Speed**")
+    st.markdown("Inference <1ms - monitor all links simultaneously.")
+    st.markdown("")
+    st.markdown("**📊 High Accuracy (Refactored Model)**")
+    st.markdown("- **92.88%** Overall Accuracy")
+    st.markdown("- **96.42%** Prevention Rate (detects 96% of events 50 slots ahead)")
+    st.markdown("- **3.58%** Miss Rate (only 2,188 missed out of 61,037)")
+    st.markdown("- **Realistic probabilities:** 2.6%-98.9% (no fake 100%)")
+    st.markdown("")
+    st.markdown("**💰 Cost Savings**")
+    st.markdown("- Prevent SLA violations")
+    st.markdown("- Reduce emergency responses")
+    st.markdown("- Optimize capacity planning")
+    st.markdown("- Improve user satisfaction")
 
-# Footer
-st.markdown("""
-<div style='text-align: center; padding: 2rem; opacity: 0.6;'>
-    <p>🔮 Real-time predictions | ⚡ Sub-millisecond inference | 🎯 90.5% accuracy</p>
-    <p>Try different scenarios above to see how the model responds to various traffic patterns!</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("---")
+st.info("🔮 Refactored Model (No Leakage) | ⚡ Sub-millisecond inference | 🎯 92.88% accuracy | 📊 96.42% prevention rate | 2.6%-98.9% realistic probabilities")
+st.caption("Click 'Get Random Window' to test the model on different traffic patterns!")

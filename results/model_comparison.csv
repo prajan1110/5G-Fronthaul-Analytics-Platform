@@ -1,4 +1,0 @@
-model,accuracy,precision,recall,f1_score,roc_auc,true_negatives,false_positives,false_negatives,true_positives
-Logistic Regression,0.9968820798097844,0.9954098844175715,0.9994632313472893,0.9974324399209413,0.9999817430753022,34886,249,29,53998
-Random Forest,1.0,1.0,1.0,1.0,1.0,35135,0,0,54027
-Gradient Boosting,1.0,1.0,1.0,1.0,1.0,35135,0,0,54027
