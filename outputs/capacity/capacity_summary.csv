@@ -1,0 +1,4 @@
+Link_ID,Mean_Mbps,P95_Mbps,P99_Mbps,Recommended_Capacity_Mbps,Capacity_Without_Buffer_Mbps,Buffer_Time_Microseconds,Overload_Slot_Percentage,Nokia_Constraint_Status
+Link_1,0.26,2.34,4.66,5.36,9.31,142.8,0.077,PASS
+Link_2,0.03,0.02,0.05,0.06,4.65,142.8,0.919,PASS
+Link_3,0.67,4.7,4.85,5.58,11.68,142.8,0.865,PASS
