@@ -1,11 +1,15 @@
 # Nokia 5G Fronthaul Network Analysis
 
+[![GitHub](https://img.shields.io/badge/GitHub-Repo-blue?style=for-the-badge&logo=github)](https://github.com/prajan1110/5G-Fronthaul-Analytics-Platform)
+
 **Production-ready implementation for fronthaul topology discovery, capacity planning, and ML-based congestion prediction & prevention**
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-App-ff4b4b?style=for-the-badge&logo=streamlit)](http://localhost:8501)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![ML Models](https://img.shields.io/badge/ML-92.88%25%20Accuracy-success?style=for-the-badge)]()
 [![Prevention](https://img.shields.io/badge/Prevention-96.42%25%20Detection-brightgreen?style=for-the-badge)]()
+
+Last updated: February 2, 2026
 
 ---
 
